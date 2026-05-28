@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert, Switch } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff, ShieldCheck, Mail, Lock, Phone, Moon, Sun } from 'lucide-react-native';
+import { Eye, EyeOff, ShieldCheck, Mail, Lock, Phone, Moon, Sun, User, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { typography } from '../../src/theme/typography';
 import { spacing, borderRadius } from '../../src/theme/spacing';
@@ -13,15 +13,25 @@ export default function LoginScreen() {
   
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Controlled fields
+  const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{text: string, type: 'error' | 'success'} | null>(null);
 
-  const handleEmailAuth = async () => {
+  const handleAuth = async () => {
     setMessage(null);
     if (!email || !password) {
       setMessage({ text: 'Please enter both email and password.', type: 'error' });
+      return;
+    }
+
+    if (!isLogin && (!fullName || !phoneNumber)) {
+      setMessage({ text: 'Please fill in your name and phone number to sign up.', type: 'error' });
       return;
     }
 
@@ -39,7 +49,16 @@ export default function LoginScreen() {
         }
         router.replace('/(tabs)');
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+              phone_number: phoneNumber,
+            }
+          }
+        });
         if (error) throw error;
         setMessage({ text: 'Account Created! Check your email for the confirmation link to log in.', type: 'success' });
       }
@@ -75,100 +94,129 @@ export default function LoginScreen() {
           </View>
 
           <View style={[styles.card, { backgroundColor: colors.background.paper, borderColor: colors.border.base }]}>
-
             
-            <View style={[styles.tabContainer, { backgroundColor: colors.background.base }]}>
-              <Pressable 
-                onPress={() => { setIsLogin(true); setMessage(null); }} 
-                style={[styles.tabBtn, isLogin && styles.tabBtnActive, isLogin && { backgroundColor: colors.background.paper }]}
-              >
-                <Text style={[styles.tabText, { color: isLogin ? colors.primary.base : colors.text.tertiary }]}>Log In</Text>
-              </Pressable>
-              <Pressable 
-                onPress={() => { setIsLogin(false); setMessage(null); }} 
-                style={[styles.tabBtn, !isLogin && styles.tabBtnActive, !isLogin && { backgroundColor: colors.background.paper }]}
-              >
-                <Text style={[styles.tabText, { color: !isLogin ? colors.primary.base : colors.text.tertiary }]}>Sign Up</Text>
-              </Pressable>
+            {/* Conditional Form Render */}
+            {!isLogin && (
+              <>
+                <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Full Name</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: isDark ? colors.background.base : '#F3F4F6', borderColor: colors.border.strong }]}>
+                  <User size={20} color={colors.text.tertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text.primary }]}
+                    placeholder="Priya Sharma"
+                    placeholderTextColor={colors.text.tertiary}
+                    value={fullName}
+                    onChangeText={setFullName}
+                  />
+                </View>
+
+                <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Phone Number</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: isDark ? colors.background.base : '#F3F4F6', borderColor: colors.border.strong }]}>
+                  <Phone size={20} color={colors.text.tertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.text.primary }]}
+                    placeholder="+91 98765 43210"
+                    placeholderTextColor={colors.text.tertiary}
+                    value={phoneNumber}
+                    onChangeText={setPhoneNumber}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+              </>
+            )}
+
+            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Email Address</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: isDark ? colors.background.base : '#F3F4F6', borderColor: colors.border.strong }]}>
+              <Mail size={20} color={colors.text.tertiary} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: colors.text.primary }]}
+                placeholder="you@example.com"
+                placeholderTextColor={colors.text.tertiary}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
             </View>
 
-            <View style={styles.inputContainer}>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background.base, borderColor: colors.border.strong }]}>
-                <Mail size={20} color={colors.text.tertiary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.text.primary }]}
-                  placeholder="Email Address"
-                  placeholderTextColor={colors.text.tertiary}
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                />
-              </View>
-
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background.base, borderColor: colors.border.strong }]}>
-                <Lock size={20} color={colors.text.tertiary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: colors.text.primary }]}
-                  placeholder="Password"
-                  placeholderTextColor={colors.text.tertiary}
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                  {showPassword ? (
-                    <EyeOff size={20} color={colors.text.tertiary} />
-                  ) : (
-                    <Eye size={20} color={colors.text.tertiary} />
-                  )}
-                </Pressable>
-              </View>
-              
-              {isLogin && (
-                <Text style={[styles.forgotText, { color: colors.primary.base }]}>Forgot Password?</Text>
-              )}
+            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Password</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: isDark ? colors.background.base : '#F3F4F6', borderColor: colors.border.strong }]}>
+              <Lock size={20} color={colors.text.tertiary} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, { color: colors.text.primary }]}
+                placeholder="••••••••"
+                placeholderTextColor={colors.text.tertiary}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                {showPassword ? (
+                  <EyeOff size={20} color={colors.text.tertiary} />
+                ) : (
+                  <Eye size={20} color={colors.text.tertiary} />
+                )}
+              </Pressable>
             </View>
+            
+            {isLogin && (
+              <Text style={[styles.forgotText, { color: colors.primary.base }]}>Forgot Password?</Text>
+            )}
 
             {message && (
-              <View style={{ marginBottom: spacing.lg, padding: spacing.md, backgroundColor: message.type === 'error' ? '#FEE2E2' : '#D1FAE5', borderRadius: borderRadius.md }}>
-                <Text style={{ color: message.type === 'error' ? '#DC2626' : '#059669', textAlign: 'center', fontSize: typography.sizes.sm, fontWeight: typography.weights.medium }}>
+              <View style={[styles.messageBox, { backgroundColor: message.type === 'error' ? '#FEE2E2' : '#D1FAE5' }]}>
+                <Text style={[styles.messageText, { color: message.type === 'error' ? '#DC2626' : '#059669' }]}>
                   {message.text}
                 </Text>
               </View>
             )}
 
+            {/* Action Submit Button */}
             <Pressable 
-              style={[styles.loginBtn, { backgroundColor: colors.primary.base }]} 
-              onPress={handleEmailAuth}
+              style={[styles.submitBtn, { backgroundColor: colors.primary.base }]} 
+              onPress={handleAuth}
               disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color={colors.text.inverse} />
               ) : (
-                <Text style={[styles.loginBtnText, { color: colors.text.inverse }]}>
-                  {isLogin ? 'LOG IN' : 'CREATE ACCOUNT'}
-                </Text>
+                <>
+                  <Text style={[styles.submitBtnText, { color: colors.text.inverse }]}>
+                    {isLogin ? 'Log In' : 'Create Account'}
+                  </Text>
+                  <ArrowRight size={20} color={colors.text.inverse} />
+                </>
               )}
             </Pressable>
 
+            {/* Social Separator */}
             <View style={styles.dividerContainer}>
               <View style={[styles.divider, { backgroundColor: colors.border.strong }]} />
               <Text style={[styles.dividerText, { color: colors.text.tertiary }]}>OR CONTINUE WITH</Text>
               <View style={[styles.divider, { backgroundColor: colors.border.strong }]} />
             </View>
 
-            <View style={styles.socialRow}>
-              <Pressable style={[styles.socialBtn, { borderColor: colors.border.strong }]} onPress={() => handleOAuth('Google')}>
-                <Text style={[styles.socialBtnText, { color: colors.text.primary }]}>G</Text>
-              </Pressable>
-              <Pressable style={[styles.socialBtn, { borderColor: colors.border.strong }]} onPress={() => handleOAuth('Apple')}>
-                <Text style={[styles.socialBtnText, { color: colors.text.primary }]}>A</Text>
-              </Pressable>
-              <Pressable style={[styles.socialBtn, { borderColor: colors.border.strong }]} onPress={() => handleOAuth('Phone')}>
-                <Phone size={20} color={colors.text.primary} />
+            {/* Wide Google Button */}
+            <Pressable 
+              style={[styles.googleBtn, { backgroundColor: colors.background.paper, borderColor: colors.border.strong }]} 
+              onPress={() => handleOAuth('Google')}
+            >
+              <Text style={styles.googleIconText}>G</Text>
+              <Text style={[styles.googleBtnText, { color: colors.text.primary }]}>Google</Text>
+            </Pressable>
+
+            {/* Bottom Toggle Link */}
+            <View style={styles.toggleFooter}>
+              <Text style={[styles.footerText, { color: colors.text.secondary }]}>
+                {isLogin ? "Don't have an account? " : "Already have an account? "}
+              </Text>
+              <Pressable onPress={() => { setIsLogin(!isLogin); setMessage(null); }}>
+                <Text style={[styles.footerLink, { color: colors.primary.base }]}>
+                  {isLogin ? 'Sign up' : 'Log in'}
+                </Text>
               </Pressable>
             </View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -191,13 +239,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
-    paddingTop: 80,
+    paddingTop: 60,
     paddingBottom: spacing['4xl'],
     justifyContent: 'center',
   },
   headerContent: {
     alignItems: 'center',
-    marginBottom: spacing['2xl'],
+    marginBottom: spacing.xl,
   },
   shieldWrapper: {
     width: 80,
@@ -205,7 +253,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   headerTitle: {
     fontSize: typography.sizes['2xl'],
@@ -226,45 +274,30 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    borderRadius: borderRadius.lg,
-    padding: 4,
-    marginBottom: spacing.xl,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    borderRadius: borderRadius.md,
-  },
-  tabBtnActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-  },
-  inputContainer: {
-    marginBottom: spacing.xl,
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    marginTop: 10,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
+    borderRadius: 12,
     borderWidth: 1,
+    height: 54,
+    marginBottom: 10,
   },
   inputIcon: {
     paddingLeft: spacing.lg,
+    paddingRight: spacing.sm,
   },
   input: {
     flex: 1,
-    padding: spacing.lg,
+    height: '100%',
+    paddingRight: spacing.lg,
     fontSize: typography.sizes.md,
   },
   eyeIcon: {
@@ -274,21 +307,37 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold,
+    marginTop: 4,
+    marginBottom: 10,
   },
-  loginBtn: {
-    padding: spacing.lg,
+  messageBox: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
     borderRadius: borderRadius.md,
-    alignItems: 'center',
   },
-  loginBtnText: {
+  messageText: {
+    textAlign: 'center',
     fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+  },
+  submitBtn: {
+    flexDirection: 'row',
+    height: 54,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  submitBtnText: {
+    fontSize: typography.sizes.md,
     fontWeight: typography.weights.bold,
-    letterSpacing: 1,
+    marginRight: 8,
   },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.xl,
+    marginVertical: spacing.md,
   },
   divider: {
     flex: 1,
@@ -300,21 +349,37 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
     letterSpacing: 1,
   },
-  socialRow: {
+  googleBtn: {
+    flexDirection: 'row',
+    height: 54,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  googleIconText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#EA4335', // Google Red
+    marginRight: 8,
+  },
+  googleBtnText: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+  },
+  toggleFooter: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: spacing.lg,
-  },
-  socialBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    marginTop: spacing.md,
   },
-  socialBtnText: {
-    fontSize: typography.sizes.lg,
+  footerText: {
+    fontSize: typography.sizes.sm,
+  },
+  footerLink: {
+    fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
   },
 });

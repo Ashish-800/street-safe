@@ -11,12 +11,21 @@ export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const router = useRouter();
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('Priya Das');
+  const [userPhone, setUserPhone] = useState<string>('+91 98765 43210');
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }: any) => {
       const user = data?.user;
       if (user) {
         setUserEmail(user.email ?? null);
+        const metadata = user.user_metadata || {};
+        if (metadata.full_name) {
+          setUserName(metadata.full_name);
+        }
+        if (metadata.phone_number) {
+          setUserPhone(metadata.phone_number);
+        }
       }
     });
   }, []);
@@ -45,13 +54,13 @@ export default function ProfileScreen() {
         <View style={[styles.profileCard, { backgroundColor: colors.background.paper, borderColor: colors.border.base }]}>
           <View style={styles.avatarContainer}>
             <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary.light, borderColor: colors.primary.base }]}>
-              <Text style={[styles.avatarText, { color: colors.primary.base }]}>P</Text>
+              <Text style={[styles.avatarText, { color: colors.primary.base }]}>{userName.charAt(0).toUpperCase()}</Text>
             </View>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.text.primary }]}>Priya Das</Text>
+            <Text style={[styles.profileName, { color: colors.text.primary }]}>{userName}</Text>
             <Text style={[styles.profileDetail, { color: colors.text.secondary }]}>{userEmail || 'Not logged in'}</Text>
-            <Text style={[styles.profileDetail, { color: colors.text.secondary }]}>+91 98765 43210</Text>
+            <Text style={[styles.profileDetail, { color: colors.text.secondary }]}>{userPhone}</Text>
           </View>
           <Pressable style={[styles.editBtn, { backgroundColor: colors.background.base }]}>
             <Text style={[styles.editBtnText, { color: colors.text.primary }]}>Edit</Text>

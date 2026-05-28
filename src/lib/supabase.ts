@@ -51,23 +51,23 @@ class MockSupabaseClient {
         // Setup initial default mock users
         if (users.length === 0) {
           users.push(
-            { email: 'ashishkarn@gmail.com', password: 'password123', id: '655b6ef2-421d-4207-866d-0b47a2638909' },
-            { email: 'ashish@gmail.com', password: 'password123', id: '986cfea7-6754-4198-b653-0f939cca2407' },
-            { email: 'karn@gmail.com', password: 'password123', id: '374405d0-d274-4f6c-9e87-d692aa9a6105' }
+            { email: 'ashishkarn@gmail.com', password: 'password123', id: '655b6ef2-421d-4207-866d-0b47a2638909', user_metadata: { full_name: 'Ashish Karn', phone_number: '+91 98888 77777' } },
+            { email: 'ashish@gmail.com', password: 'password123', id: '986cfea7-6754-4198-b653-0f939cca2407', user_metadata: { full_name: 'Ashish', phone_number: '+91 99999 88888' } },
+            { email: 'karn@gmail.com', password: 'password123', id: '374405d0-d274-4f6c-9e87-d692aa9a6105', user_metadata: { full_name: 'Karn', phone_number: '+91 77777 66666' } }
           );
           await AsyncStorage.setItem('@mock_registered_users', JSON.stringify(users));
         }
 
         const user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
         if (user && (user.password === password || password === 'password123' || password === '123456')) {
-          const sessionUser = { id: user.id, email: user.email };
+          const sessionUser = { id: user.id, email: user.email, user_metadata: user.user_metadata || {} };
           await AsyncStorage.setItem('@mock_user', JSON.stringify(sessionUser));
           return { data: { user: sessionUser, session: { access_token: 'mock-session-token' } }, error: null };
         }
         
         // If not registered but logging in, auto register in mock for frictionless offline dev experience
-        const newUser = { id: 'mock-' + Math.random().toString(36).substr(2, 9), email };
-        users.push({ email, password, id: newUser.id });
+        const newUser = { id: 'mock-' + Math.random().toString(36).substr(2, 9), email, user_metadata: { full_name: 'Guest User', phone_number: '+91 98765 43210' } };
+        users.push({ email, password, id: newUser.id, user_metadata: newUser.user_metadata });
         await AsyncStorage.setItem('@mock_registered_users', JSON.stringify(users));
         await AsyncStorage.setItem('@mock_user', JSON.stringify(newUser));
         return { data: { user: newUser, session: { access_token: 'mock-session-token' } }, error: null };
@@ -75,15 +75,19 @@ class MockSupabaseClient {
         return { data: { user: null, session: null }, error: { message: 'Offline sign-in failed' } };
       }
     },
-    signUp: async ({ email, password }: any) => {
+    signUp: async ({ email, password, options }: any) => {
       try {
         const usersStr = await AsyncStorage.getItem('@mock_registered_users') || '[]';
         const users = JSON.parse(usersStr);
         if (users.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
           return { data: { user: null }, error: { message: 'User already exists' } };
         }
-        const newUser = { id: 'mock-' + Math.random().toString(36).substr(2, 9), email };
-        users.push({ email, password, id: newUser.id });
+        const newUser = { 
+          id: 'mock-' + Math.random().toString(36).substr(2, 9), 
+          email,
+          user_metadata: options?.data || {}
+        };
+        users.push({ email, password, id: newUser.id, user_metadata: newUser.user_metadata });
         await AsyncStorage.setItem('@mock_registered_users', JSON.stringify(users));
         return { data: { user: newUser }, error: null };
       } catch (e) {
