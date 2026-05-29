@@ -1,134 +1,71 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet, Pressable, Text } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-  Easing,
-  runOnJS,
-  withRepeat,
-} from 'react-native-reanimated';
-import { useTheme } from '../theme/ThemeContext';
-import { typography } from '../theme/typography';
-import { shadows } from '../theme/spacing';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
+import { ShieldAlert } from 'lucide-react-native';
 
 interface SOSButtonProps {
-  onActivate: () => void;
+  onActivate?: () => void;
   size?: number;
 }
 
-export const SOSButton: React.FC<SOSButtonProps> = ({ onActivate, size = 180 }) => {
-  const [isActive, setIsActive] = useState(false);
-  const { colors } = useTheme();
-  const progress = useSharedValue(0);
-  const scale = useSharedValue(1);
-  const pulse = useSharedValue(1);
+export const SOSButton = ({ onActivate, size = 180 }: SOSButtonProps) => {
+  const [progress, setProgress] = useState(0);
+  const [active, setActive] = useState(false);
+  const interval = useRef<any>(null);
 
-  const startAnimation = useCallback(() => {
-    scale.value = withSpring(0.95);
-    progress.value = withTiming(1, { duration: 3000, easing: Easing.linear }, (finished) => {
-      if (finished) {
-        runOnJS(setIsActive)(true);
-        runOnJS(onActivate)();
-        pulse.value = withRepeat(
-          withTiming(1.2, { duration: 1000 }),
-          -1,
-          true
-        );
-      }
-    });
-  }, [progress, scale, pulse, onActivate]);
+  const radius = 75, strokeWidth = 9;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (progress / 100) * circumference;
 
-  const stopAnimation = useCallback(() => {
-    if (!isActive) {
-      scale.value = withSpring(1);
-      progress.value = withTiming(0, { duration: 200 });
-    }
-  }, [isActive, progress, scale]);
+  const start = () => {
+    if (active) return;
+    interval.current = setInterval(() => {
+      setProgress(prev => {
+        if (prev + 1.8 >= 100) {
+          clearInterval(interval.current);
+          setActive(true);
+          onActivate?.();
+          return 100;
+        }
+        return prev + 1.8;
+      });
+    }, 54);
+  };
 
-  const animatedRingStyle = useAnimatedStyle(() => {
-    return {
-      borderWidth: 10,
-      borderColor: colors.emergency.base,
-      borderRadius: size / 2,
-      position: 'absolute',
-      width: size,
-      height: size,
-      transform: [{ scale: progress.value }],
-      opacity: progress.value,
-    };
-  });
+  const end = () => {
+    if (active) return;
+    clearInterval(interval.current);
+    setProgress(0);
+  };
 
-  const animatedButtonStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scale.value }],
-    };
-  });
-
-  const animatedPulseStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: isActive ? pulse.value : 1 }],
-      opacity: isActive ? 1 - (pulse.value - 1) : 0,
-    };
-  });
+  const cancel = () => { setActive(false); setProgress(0); };
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
-      {/* Outer pulsing ring when active */}
-      <Animated.View
-        style={[
-          styles.pulseRing,
-          { width: size * 1.5, height: size * 1.5, borderRadius: size * 0.75, backgroundColor: colors.emergency.light },
-          animatedPulseStyle,
-        ]}
-      />
-      
-      {/* Progress ring when holding */}
-      <Animated.View style={animatedRingStyle} />
-      
-      {/* Main Button */}
-      <Animated.View style={[styles.buttonContainer, { width: size * 0.8, height: size * 0.8 }, animatedButtonStyle]}>
-        <Pressable
-          onPressIn={startAnimation}
-          onPressOut={stopAnimation}
-          style={[styles.button, { borderRadius: size * 0.4, backgroundColor: colors.emergency.base }]}
-        >
-          <Text style={styles.text}>{isActive ? 'ACTIVE' : 'SOS'}</Text>
-          {!isActive && <Text style={styles.subtext}>Hold 3s</Text>}
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke="rgba(239,68,68,0.25)" strokeWidth={strokeWidth} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke="#EF4444" strokeWidth={strokeWidth} fill="none"
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      </Svg>
+      <Pressable onPressIn={start} onPressOut={end} style={styles.inner}>
+        <ShieldAlert size={38} color="#FFF" />
+        <Text style={styles.text}>{active ? 'ACTIVE' : progress > 0 ? `${Math.round(progress)}%` : 'SOS'}</Text>
+      </Pressable>
+      {active && (
+        <Pressable onPress={cancel} style={styles.cancel}>
+          <Text style={{ color: '#EF4444', fontWeight: '700' }}>Cancel</Text>
         </Pressable>
-      </Animated.View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    justifyContent: 'center',
-    alignItems: 'center',
+  container: { justifyContent: 'center', alignItems: 'center' },
+  inner: {
+    width: 140, height: 140, borderRadius: 70, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center',
+    shadowColor: 'rgba(239,68,68,0.6)', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 1, shadowRadius: 36, elevation: 12,
   },
-  buttonContainer: {
-    ...shadows.medium,
-  },
-  button: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-  },
-  pulseRing: {
-    position: 'absolute',
-  },
-  text: {
-    color: '#FFFFFF',
-    fontSize: typography.sizes['3xl'],
-    fontWeight: typography.weights.bold,
-  },
-  subtext: {
-    color: '#FFFFFF',
-    fontSize: typography.sizes.sm,
-    opacity: 0.8,
-    marginTop: 4,
-  },
+  text: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 3, marginTop: 4 },
+  cancel: { marginTop: 16, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: '#EF4444' },
 });

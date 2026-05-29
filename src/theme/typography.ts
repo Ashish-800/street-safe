@@ -1,5 +1,14 @@
 export const typography = {
   sizes: {
+    micro: 11,
+    caption: 12,
+    body: 14,
+    h3: 17,
+    h2: 20,
+    h1: 24,
+    display: 32,
+    hero: 40,
+    // Aliases for backward compat
     xs: 12,
     sm: 14,
     md: 16,
@@ -14,5 +23,11 @@ export const typography = {
     medium: '500' as const,
     semibold: '600' as const,
     bold: '700' as const,
+    extrabold: '800' as const,
+    black: '900' as const,
+  },
+  lineHeights: {
+    body: 1.6,
+    heading: 1.2,
   },
 };

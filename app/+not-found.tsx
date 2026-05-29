@@ -7,22 +7,14 @@ export default function NotFoundScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
-      <View style={[styles.container, { backgroundColor: colors.background.base }]}>
-        <Text style={[styles.title, { color: colors.text.primary }]}>This screen doesn't exist.</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.title, { color: colors.text }]}>This screen doesn't exist.</Text>
       </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  title: { fontSize: 20, fontWeight: 'bold' },
 });

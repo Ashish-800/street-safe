@@ -200,7 +200,36 @@ export const supabase = new Proxy({} as any, {
               }
             }
             return mockFrom.select();
-          }
+          },
+          update: (data: any) => {
+            if (realFrom) {
+              try {
+                return realFrom.update(data);
+              } catch (err: any) {
+                console.warn(`Real Supabase update ${table} failed:`, err.message);
+              }
+            }
+            // Mock update chain
+            const chain = {
+              eq: () => chain,
+              then: (resolve: any) => resolve({ data: null, error: null }),
+            };
+            return chain;
+          },
+          delete: () => {
+            if (realFrom) {
+              try {
+                return realFrom.delete();
+              } catch (err: any) {
+                console.warn(`Real Supabase delete from ${table} failed:`, err.message);
+              }
+            }
+            const chain = {
+              eq: () => chain,
+              then: (resolve: any) => resolve({ data: null, error: null }),
+            };
+            return chain;
+          },
         };
       };
     }

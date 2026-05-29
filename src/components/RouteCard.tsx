@@ -1,162 +1,58 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Navigation, Clock } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { typography } from '../theme/typography';
-import { borderRadius, shadows, spacing } from '../theme/spacing';
-import { SafetyBadge } from './SafetyBadge';
 
 interface RouteCardProps {
-  route: {
-    id: string;
-    name: string;
-    duration: string;
-    score: number;
-    color: string;
-    via: string;
-    tags: string[];
-  };
-  isSelected: boolean;
-  onPress: () => void;
+  label: string;
+  time: string;
+  via: string;
+  km: string;
+  safety: number;
+  color: string;
+  selected?: boolean;
+  onPress?: () => void;
+  best?: boolean;
 }
 
-export const RouteCard: React.FC<RouteCardProps> = ({ route, isSelected, onPress }) => {
+export const RouteCard = ({ label, time, via, km, safety, color, selected, onPress, best }: RouteCardProps) => {
   const { colors } = useTheme();
 
-  const getStatus = (score: number) => {
-    if (score >= 90) return 'safe';
-    if (score >= 75) return 'warning';
-    return 'danger';
-  };
-
-  const getBorderColor = () => {
-    if (!isSelected) return 'transparent';
-    switch (route.color) {
-      case 'safe': return colors.safe.base;
-      case 'warning': return colors.warning.base;
-      case 'danger': return colors.emergency.base;
-      default: return colors.primary.base;
-    }
-  };
-
   return (
-    <Pressable 
-      style={[
-        styles.card, 
-        isSelected && styles.cardSelected,
-        { borderColor: getBorderColor(), backgroundColor: colors.background.paper }
-      ]}
-      onPress={onPress}
-    >
+    <Pressable onPress={onPress} style={[styles.card, {
+      backgroundColor: selected ? `${color}0D` : colors.paper,
+      borderColor: selected ? color : colors.border,
+      borderWidth: selected ? 2 : 1,
+    }]}>
       <View style={styles.header}>
-        <View style={styles.titleContainer}>
-          <Text style={[styles.name, { color: colors.text.primary }]}>{route.name}</Text>
-          <Text style={[styles.via, { color: colors.text.secondary }]}>via {route.via}</Text>
+        <View style={[styles.badge, { backgroundColor: `${color}20` }]}>
+          <Text style={{ fontSize: 10, fontWeight: '800', color }}>{label}</Text>
         </View>
-        <View style={styles.scoreContainer}>
-          <Text style={[styles.score, { color: colors.text.primary }]}>{route.score}%</Text>
-          <Text style={[styles.scoreLabel, { color: colors.text.tertiary }]}>Safety</Text>
-        </View>
+        {best && (
+          <View style={[styles.bestBadge, { backgroundColor: colors.primary }]}>
+            <Text style={{ fontSize: 8, fontWeight: '800', color: '#FFF' }}>BEST</Text>
+          </View>
+        )}
+        <View style={{ flex: 1 }} />
+        <Text style={[styles.time, { color: colors.text }]}>{time}</Text>
       </View>
-
-      <View style={styles.detailsRow}>
-        <View style={styles.timeContainer}>
-          <Clock size={16} color={colors.text.secondary} />
-          <Text style={[styles.duration, { color: colors.text.primary }]}>{route.duration}</Text>
+      <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4 }}>Via {via} · {km}</Text>
+      <View style={styles.barRow}>
+        <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
+          <View style={[styles.barFill, { width: `${safety}%`, backgroundColor: color }]} />
         </View>
-        <View style={[styles.progressBarBg, { backgroundColor: colors.border.base }]}>
-          <View 
-            style={[
-              styles.progressBarFill, 
-              { 
-                width: `${route.score}%`,
-                backgroundColor: route.color === 'safe' ? colors.safe.base : 
-                                 route.color === 'warning' ? colors.warning.base : 
-                                 colors.primary.base 
-              }
-            ]} 
-          />
-        </View>
-      </View>
-
-      <View style={styles.tagsContainer}>
-        {route.tags.map((tag, index) => (
-          <SafetyBadge key={index} status={getStatus(route.score)} text={tag} />
-        ))}
+        <Text style={{ fontSize: 10, fontWeight: '700', color, marginLeft: 8 }}>{safety}%</Text>
       </View>
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    ...shadows.soft,
-  },
-  cardSelected: {
-    ...shadows.medium,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  titleContainer: {
-    flex: 1,
-  },
-  name: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-  },
-  via: {
-    fontSize: typography.sizes.sm,
-    marginTop: 2,
-  },
-  scoreContainer: {
-    alignItems: 'flex-end',
-  },
-  score: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
-  },
-  scoreLabel: {
-    fontSize: typography.sizes.xs,
-    textTransform: 'uppercase',
-  },
-  detailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.sm,
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 80,
-  },
-  duration: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
-    marginLeft: spacing.xs,
-  },
-  progressBarBg: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
+  card: { borderRadius: 18, padding: 14, marginBottom: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  bestBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  time: { fontSize: 24, fontWeight: '900' },
+  barRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  barTrack: { flex: 1, height: 6, borderRadius: 3 },
+  barFill: { height: '100%', borderRadius: 3 },
 });

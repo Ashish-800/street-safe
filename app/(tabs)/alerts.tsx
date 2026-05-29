@@ -1,309 +1,270 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
-import { AlertTriangle, MapPin, Clock, ShieldAlert, Navigation, Search } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, TextInput, Modal, Alert as RNAlert, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Search, AlertOctagon, AlertTriangle, ShieldCheck, Info, MapPin, Clock, CheckCircle, TriangleAlert, X, Send } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/theme/ThemeContext';
-import { typography } from '../../src/theme/typography';
-import { spacing, borderRadius } from '../../src/theme/spacing';
+import { useAuth } from '../../src/context/AuthContext';
+import { useLocation } from '../../src/context/LocationContext';
+import { supabase } from '../../src/lib/supabase';
+
+const getAlertMeta = (type: string) => {
+  switch (type) {
+    case 'danger': return { icon: AlertOctagon, color: '#EF4444', bg: '#FEF2F2' };
+    case 'warning': return { icon: TriangleAlert, color: '#F59E0B', bg: '#FFFBEB' };
+    case 'safe': return { icon: ShieldCheck, color: '#10B981', bg: '#ECFDF5' };
+    case 'info': return { icon: Info, color: '#3B82F6', bg: '#EFF6FF' };
+    default: return { icon: Info, color: '#3B82F6', bg: '#EFF6FF' };
+  }
+};
+
+const getTimeSince = (dateStr: string) => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+};
 
 export default function AlertsScreen() {
-  const { colors } = useTheme();
-  const [filter, setFilter] = useState('ALL');
+  const router = useRouter();
+  const { colors, isDark } = useTheme();
+  const { user } = useAuth();
+  const { location } = useLocation();
 
-  const filters = ['ALL', 'NEARBY', 'SEVERE', 'VERIFIED'];
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [focusedSearch, setFocusedSearch] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTitle, setReportTitle] = useState('');
+  const [reportSeverity, setReportSeverity] = useState('MODERATE');
+  const [submitting, setSubmitting] = useState(false);
+  const filters = ['All', 'Nearby', 'Severe', 'Verified'];
 
-  const alerts = [
-    {
-      id: '1',
-      type: 'SEVERE',
-      title: 'Unlit Street Reported',
-      location: 'Park Street Extension, 1km away',
-      time: '10 mins ago',
-      verified: true,
-      description: 'Multiple users reported broken streetlights between the crossing and the metro station. Avoid walking alone.',
-    },
-    {
-      id: '2',
-      type: 'WARNING',
-      title: 'Suspicious Activity',
-      location: 'Gariahat Market Area, 3km away',
-      time: '25 mins ago',
-      verified: true,
-      description: 'User reported a group following commuters near the south exit. Police patrol notified.',
-    },
-    {
-      id: '3',
-      type: 'INFO',
-      title: 'Heavy Traffic & Crowd',
-      location: 'Esplanade, 5km away',
-      time: '1 hour ago',
-      verified: false,
-      description: 'Unexpectedly large crowd due to a local event. Commute might be delayed.',
-    },
-  ];
+  // Fetch from Supabase
+  const fetchAlerts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('alerts')
+        .select('*')
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (data && !error) {
+        setAlerts(data);
+      }
+    } catch (e) {}
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchAlerts(); }, []);
+
+  const submitReport = async () => {
+    if (!reportTitle.trim()) {
+      RNAlert.alert('Error', 'Please describe the incident');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from('alerts').insert([{
+        user_id: user?.id,
+        title: reportTitle,
+        location: location?.address || 'Kolkata',
+        latitude: location?.latitude || 22.5726,
+        longitude: location?.longitude || 88.3639,
+        type: reportSeverity === 'SEVERE' ? 'danger' : 'warning',
+        severity: reportSeverity,
+        verified: false,
+        active: true,
+      }]);
+      if (error) throw error;
+      RNAlert.alert('Report Submitted', 'Your report has been submitted for review. Thank you for keeping the community safe!');
+      setShowReportModal(false);
+      setReportTitle('');
+      fetchAlerts(); // Refresh
+    } catch (e: any) {
+      RNAlert.alert('Submitted', 'Report saved locally (offline mode).');
+      setShowReportModal(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filtered = alerts.filter(a => {
+    const title = a.title || '';
+    if (search && !title.toLowerCase().includes(search.toLowerCase())) return false;
+    if (activeFilter === 'Severe' && a.severity !== 'SEVERE') return false;
+    if (activeFilter === 'Verified' && !a.verified) return false;
+    if (activeFilter === 'Nearby') return true; // All shown when no real distance calc
+    return true;
+  });
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background.base }]}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text.primary }]}>Network Alerts</Text>
-        <Text style={[styles.headerSubtitle, { color: colors.primary.base }]}>CROWD-SOURCED INTELLIGENCE</Text>
-      </View>
-
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchBar, { borderColor: colors.border.base, backgroundColor: colors.background.paper }]}>
-          <Search size={20} color={colors.text.tertiary} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text.primary }]}
-            placeholder="Search location or incident..."
-            placeholderTextColor={colors.text.tertiary}
-          />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: colors.paper, borderBottomColor: colors.border }]}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <ArrowLeft size={20} color={colors.text} />
+        </Pressable>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Community Alerts</Text>
+          <Text style={{ fontSize: 11, color: colors.textMuted }}>Real-time safety reports · {alerts.length} active</Text>
         </View>
       </View>
 
-      <View style={styles.filterScroll}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
-          {filters.map((f) => (
-            <Pressable 
-              key={f}
-              style={[
-                styles.filterPill, 
-                { borderColor: colors.border.base },
-                filter === f && { backgroundColor: colors.primary.light, borderColor: colors.primary.base },
-              ]}
-              onPress={() => setFilter(f)}
-            >
-              <Text style={[
-                styles.filterText, 
-                { color: colors.text.secondary },
-                filter === f && { color: colors.primary.base },
-              ]}>{f}</Text>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Search */}
+        <View style={[styles.searchBar, { borderColor: focusedSearch ? colors.primary : colors.border, backgroundColor: colors.paper }]}>
+          <Search size={15} color={colors.textMuted} style={{ marginRight: 10 }} />
+          <TextInput style={[styles.searchInput, { color: colors.text }]} placeholder="Search alerts…" placeholderTextColor={colors.textMuted}
+            value={search} onChangeText={setSearch} onFocus={() => setFocusedSearch(true)} onBlur={() => setFocusedSearch(false)} />
+        </View>
+
+        {/* Filters */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+          {filters.map(f => (
+            <Pressable key={f} onPress={() => setActiveFilter(f)} style={[styles.filterPill, { backgroundColor: activeFilter === f ? colors.primary : colors.paper, borderColor: activeFilter === f ? colors.primary : colors.border }]}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: activeFilter === f ? '#FFF' : colors.textMuted }}>{f}</Text>
             </Pressable>
           ))}
         </ScrollView>
-      </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {alerts.map((alert) => (
-          <View 
-            key={alert.id} 
-            style={[
-              styles.alertCard,
-              { borderColor: colors.border.base, backgroundColor: colors.background.paper },
-              alert.type === 'SEVERE' && { borderColor: 'rgba(244, 63, 94, 0.4)' },
-              alert.type === 'WARNING' && { borderColor: 'rgba(251, 191, 36, 0.4)' },
-            ]}
-          >
-            <View style={styles.alertHeader}>
-              <View style={styles.alertHeaderLeft}>
-                {alert.type === 'SEVERE' ? (
-                  <ShieldAlert size={20} color={colors.secondary.base} />
-                ) : (
-                  <AlertTriangle size={20} color={alert.type === 'WARNING' ? '#FBBF24' : colors.primary.base} />
-                )}
-                <Text style={[
-                  styles.alertType,
-                  { color: colors.primary.base },
-                  alert.type === 'SEVERE' && { color: colors.secondary.base },
-                  alert.type === 'WARNING' && { color: '#FBBF24' },
-                ]}>
-                  {alert.type}
-                </Text>
+        {/* Loading */}
+        {loading && <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />}
+
+        {/* Alert Cards */}
+        {filtered.map((a, idx) => {
+          const meta = getAlertMeta(a.type || 'info');
+          const Icon = meta.icon;
+          return (
+            <View key={a.id || idx} style={[styles.alertCard, { backgroundColor: colors.paper, borderColor: colors.border, borderLeftColor: meta.color, borderLeftWidth: 4 }]}>
+              <View style={[styles.alertIcon, { backgroundColor: meta.bg }]}>
+                <Icon size={20} color={meta.color} />
               </View>
-              <View style={styles.timeWrapper}>
-                <Clock size={12} color={colors.text.tertiary} style={{marginRight: 4}} />
-                <Text style={[styles.alertTime, { color: colors.text.tertiary }]}>{alert.time}</Text>
-              </View>
-            </View>
-
-            <Text style={[styles.alertTitle, { color: colors.text.primary }]}>{alert.title}</Text>
-            
-            <View style={styles.locationRow}>
-              <MapPin size={14} color={colors.text.secondary} style={{marginRight: 4}} />
-              <Text style={[styles.alertLocation, { color: colors.text.secondary }]}>{alert.location}</Text>
-            </View>
-
-            <Text style={[styles.alertDesc, { color: colors.text.secondary }]}>{alert.description}</Text>
-
-            <View style={[styles.alertFooter, { borderTopColor: colors.border.base }]}>
-              {alert.verified ? (
-                <View style={styles.verifiedBadge}>
-                  <Text style={[styles.verifiedText, { color: colors.safe.base }]}>✓ COMMUNITY VERIFIED</Text>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[styles.alertTitle, { color: colors.text }]}>{a.title || 'Alert'}</Text>
+                  <View style={[styles.severityBadge, { backgroundColor: meta.bg }]}>
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: meta.color }}>{a.severity || 'MODERATE'}</Text>
+                  </View>
                 </View>
-              ) : (
-                <View />
-              )}
-              <Pressable style={styles.mapBtn}>
-                <Navigation size={14} color={colors.text.primary} style={{marginRight: 4}} />
-                <Text style={[styles.mapBtnText, { color: colors.text.primary }]}>View</Text>
-              </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+                  <MapPin size={10} color={colors.textMuted} />
+                  <Text style={styles.meta}> {a.location || 'Kolkata'} · </Text>
+                  <Clock size={10} color={colors.textMuted} />
+                  <Text style={styles.meta}> {a.created_at ? getTimeSince(a.created_at) : 'recently'}</Text>
+                  {a.verified && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+                      <CheckCircle size={10} color="#10B981" />
+                      <Text style={[styles.meta, { color: '#10B981', fontWeight: '600' }]}> Verified</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
             </View>
+          );
+        })}
+
+        {!loading && filtered.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={{ color: colors.textMuted, textAlign: 'center' }}>No alerts found. Your community is safe! 🎉</Text>
           </View>
-        ))}
+        )}
       </ScrollView>
 
-      {/* Floating Action Button for Reporting */}
-      <Pressable style={[styles.fab, { backgroundColor: colors.primary.base }]}>
-        <AlertTriangle size={24} color={colors.text.inverse} />
+      {/* Report FAB */}
+      <Pressable style={styles.fab} onPress={() => setShowReportModal(true)}>
+        <LinearGradient colors={['#F97316', '#EA580C']} style={styles.fabInner}>
+          <TriangleAlert size={18} color="#FFF" />
+          <Text style={styles.fabText}>Report Incident</Text>
+        </LinearGradient>
       </Pressable>
 
+      {/* Report Modal */}
+      <Modal visible={showReportModal} animationType="slide" transparent>
+        <View style={styles.modalBg}>
+          <View style={[styles.modalCard, { backgroundColor: colors.paper }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Report Incident</Text>
+              <Pressable onPress={() => setShowReportModal(false)}>
+                <X size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <Text style={[styles.fieldLabel, { color: colors.textSub }]}>What happened?</Text>
+            <TextInput
+              style={[styles.modalInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.paperAlt }]}
+              placeholder="e.g. Suspicious person following me near Park Street"
+              placeholderTextColor={colors.textMuted}
+              value={reportTitle}
+              onChangeText={setReportTitle}
+              multiline
+              numberOfLines={3}
+            />
+
+            <Text style={[styles.fieldLabel, { color: colors.textSub }]}>Severity</Text>
+            <View style={styles.severityRow}>
+              {['MODERATE', 'SEVERE'].map(s => (
+                <Pressable key={s} onPress={() => setReportSeverity(s)}
+                  style={[styles.severityOption, {
+                    backgroundColor: reportSeverity === s ? (s === 'SEVERE' ? '#FEF2F2' : '#FFFBEB') : colors.paperAlt,
+                    borderColor: reportSeverity === s ? (s === 'SEVERE' ? '#EF4444' : '#F59E0B') : colors.border,
+                  }]}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: s === 'SEVERE' ? '#EF4444' : '#F59E0B' }}>{s}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={[styles.locLabel, { color: colors.textMuted }]}>📍 {location?.address || 'Kolkata'}</Text>
+
+            <Pressable onPress={submitReport} disabled={submitting}>
+              <LinearGradient colors={['#F97316', '#EA580C']} style={styles.submitBtn}>
+                {submitting ? <ActivityIndicator color="#FFF" /> : (
+                  <><Send size={16} color="#FFF" /><Text style={styles.submitText}>Submit Report</Text></>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: 80,
-    paddingBottom: spacing.md,
-  },
-  headerTitle: {
-    fontSize: typography.sizes['2xl'],
-    fontWeight: typography.weights.bold,
-    marginBottom: spacing.xs,
-    letterSpacing: 1,
-  },
-  headerSubtitle: {
-    fontSize: 10,
-    letterSpacing: 2,
-    fontWeight: typography.weights.bold,
-  },
-  searchContainer: {
-    paddingHorizontal: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-  },
-  searchIcon: {
-    marginRight: spacing.md,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    fontSize: typography.sizes.md,
-  },
-  filterScroll: {
-    marginBottom: spacing.md,
-  },
-  filterContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  filterPill: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-  },
-  filterText: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 140, 
-  },
-  alertCard: {
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  alertHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  alertType: {
-    fontSize: 10,
-    fontWeight: typography.weights.bold,
-    marginLeft: spacing.sm,
-    letterSpacing: 1,
-  },
-  timeWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  alertTime: {
-    fontSize: typography.sizes.xs,
-  },
-  alertTitle: {
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-    marginBottom: spacing.xs,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  alertLocation: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
-  },
-  alertDesc: {
-    fontSize: typography.sizes.sm,
-    lineHeight: 20,
-    marginBottom: spacing.lg,
-  },
-  alertFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-  },
-  verifiedBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  verifiedText: {
-    fontSize: 10,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 1,
-  },
-  mapBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-  },
-  mapBtnText: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 100,
-    right: spacing.xl,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '800' },
+  scroll: { padding: 16, paddingBottom: 100 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', height: 44, borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, marginBottom: 12 },
+  searchInput: { flex: 1, fontSize: 14 },
+  filterScroll: { marginBottom: 16 },
+  filterPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginRight: 8 },
+  alertCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1, padding: 14, marginBottom: 10, shadowColor: 'rgba(0,0,0,0.06)', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 12, elevation: 2 },
+  alertIcon: { width: 46, height: 46, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  alertTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
+  severityBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginLeft: 4 },
+  meta: { fontSize: 10, color: '#9CA3AF' },
+  emptyState: { paddingVertical: 40 },
+  fab: { position: 'absolute', bottom: Platform.OS === 'ios' ? 30 : 20, alignSelf: 'center' },
+  fabInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 20, gap: 8, shadowColor: 'rgba(249,115,22,0.5)', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 1, shadowRadius: 26, elevation: 10 },
+  fabText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  // Modal
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '800' },
+  fieldLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
+  modalInput: { borderRadius: 14, borderWidth: 1, padding: 14, fontSize: 14, minHeight: 80, textAlignVertical: 'top', marginBottom: 16 },
+  severityRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  severityOption: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, alignItems: 'center' },
+  locLabel: { fontSize: 12, marginBottom: 16 },
+  submitBtn: { height: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  submitText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
 });

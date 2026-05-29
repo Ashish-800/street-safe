@@ -1,118 +1,44 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Phone, MapPin } from 'lucide-react-native';
-import { colors } from '../theme/colors';
-import { typography } from '../theme/typography';
-import { borderRadius, shadows, spacing } from '../theme/spacing';
+import { UserCircle2, CheckCircle, Circle } from 'lucide-react-native';
+import { useTheme } from '../theme/ThemeContext';
 
 interface ContactCardProps {
-  contact: {
-    name: string;
-    phone: string;
-    status: string;
-    initials: string;
-    color: string;
-  };
+  name: string;
+  phone: string;
+  live?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
 }
 
-export const ContactCard: React.FC<ContactCardProps> = ({ contact }) => {
-  const isOnline = contact.status === 'online';
+export const ContactCard = ({ name, phone, live, selected, onToggle }: ContactCardProps) => {
+  const { colors } = useTheme();
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: contact.color }]}>
-          <Text style={styles.avatarText}>{contact.initials}</Text>
-          <View style={[styles.statusDot, { backgroundColor: isOnline ? colors.safe.base : colors.text.tertiary }]} />
-        </View>
-        <View style={styles.info}>
-          <Text style={styles.name}>{contact.name}</Text>
-          <Text style={styles.phone}>{contact.phone}</Text>
-        </View>
+    <Pressable onPress={onToggle} style={[styles.card, {
+      backgroundColor: colors.paper, borderColor: selected ? colors.primary : colors.border,
+      borderWidth: selected ? 2 : 1,
+    }]}>
+      <View style={[styles.avatar, { backgroundColor: selected ? colors.primaryBg : colors.paperAlt }]}>
+        <UserCircle2 size={28} color={selected ? colors.primary : colors.textMuted} strokeWidth={1} />
       </View>
-      
-      <View style={styles.actions}>
-        <Pressable style={styles.actionButton}>
-          <Phone size={18} color={colors.primary.base} />
-          <Text style={styles.actionText}>Call</Text>
-        </Pressable>
-        <Pressable style={styles.actionButton}>
-          <MapPin size={18} color={colors.primary.base} />
-          <Text style={styles.actionText}>Share</Text>
-        </Pressable>
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[styles.name, { color: colors.text }]}>{name}</Text>
+        <Text style={{ fontSize: 11, color: colors.textMuted }}>{phone}</Text>
       </View>
-    </View>
+      <View style={[styles.liveBadge, { backgroundColor: live ? colors.safeBg : colors.paperAlt }]}>
+        <View style={[styles.dot, { backgroundColor: live ? colors.safe : colors.textMuted }]} />
+        <Text style={{ fontSize: 9, fontWeight: '700', color: live ? colors.safe : colors.textMuted }}>{live ? 'Live' : 'Offline'}</Text>
+      </View>
+      {selected ? <CheckCircle size={22} color={colors.primary} /> : <Circle size={22} color={colors.border} />}
+    </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.background.paper,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    ...shadows.soft,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  avatarText: {
-    color: colors.text.inverse,
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.bold,
-  },
-  statusDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: colors.background.paper,
-  },
-  info: {
-    flex: 1,
-  },
-  name: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.semibold,
-    color: colors.text.primary,
-  },
-  phone: {
-    fontSize: typography.sizes.sm,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  actions: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: colors.border.base,
-    paddingTop: spacing.md,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.background.base,
-    borderRadius: borderRadius.sm,
-    marginHorizontal: spacing.xs,
-  },
-  actionText: {
-    marginLeft: spacing.sm,
-    color: colors.primary.base,
-    fontWeight: typography.weights.medium,
-  },
+  card: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 12, marginBottom: 8 },
+  avatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  name: { fontSize: 14, fontWeight: '700' },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, gap: 4, marginRight: 8 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
 });

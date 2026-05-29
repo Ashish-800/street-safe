@@ -21,14 +21,13 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    // Load saved theme preference
     const loadTheme = async () => {
       try {
         const savedTheme = await AsyncStorage.getItem('@theme_preference');
         if (savedTheme !== null) {
           setIsDark(savedTheme === 'dark');
         } else {
-          setIsDark(false); // Make white theme the default
+          setIsDark(false);
         }
       } catch (error) {
         console.error('Failed to load theme preference', error);
@@ -51,7 +50,7 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
 
   const currentColors = isDark ? darkTheme : lightTheme;
 
-  if (!isLoaded) return null; // Prevent flash of wrong theme
+  if (!isLoaded) return null;
 
   return (
     <ThemeContext.Provider value={{ isDark, colors: currentColors, toggleTheme }}>

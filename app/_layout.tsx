@@ -2,15 +2,17 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Platform, StyleSheet } from 'react-native';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
+import { AuthProvider } from '../src/context/AuthContext';
+import { LocationProvider } from '../src/context/LocationContext';
 
 function RootLayoutNav() {
   const { colors, isDark } = useTheme();
-  
+
   return (
-    <View style={styles.webContainer}>
-      <View style={[styles.appContainer, { backgroundColor: colors.background.base }]}>
+    <View style={[styles.webContainer, { backgroundColor: isDark ? '#0C0C0E' : '#F5EEE0' }]}>
+      <View style={[styles.appContainer, { backgroundColor: colors.background }]}>
         <StatusBar style={isDark ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background.base } }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="auth/login" options={{ headerShown: false }} />
@@ -24,7 +26,11 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <RootLayoutNav />
+      <AuthProvider>
+        <LocationProvider>
+          <RootLayoutNav />
+        </LocationProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
@@ -32,19 +38,18 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   webContainer: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
     alignItems: 'center',
     justifyContent: 'center',
   },
   appContainer: {
     flex: 1,
     width: '100%',
-    maxWidth: Platform.OS === 'web' ? 480 : '100%',
+    maxWidth: Platform.OS === 'web' ? 430 : '100%',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.5,
-    shadowRadius: 40,
-    elevation: 20,
-  }
+    ...(Platform.OS === 'web' ? {
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: 'rgba(0,0,0,0.08)',
+    } : {}),
+  },
 });

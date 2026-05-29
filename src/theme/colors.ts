@@ -1,101 +1,68 @@
 export type ColorTheme = {
-  primary: { base: string; light: string; dark: string };
-  secondary: { base: string; light: string; dark: string };
-  safe: { base: string; light: string; dark: string };
-  warning: { base: string; light: string; dark: string };
-  emergency: { base: string; light: string; dark: string };
-  background: { base: string; paper: string; glass: string };
-  text: { primary: string; secondary: string; tertiary: string; inverse: string };
-  border: { base: string; strong: string; glow: string };
+  primary: string;
+  primaryDark: string;
+  primaryBg: string;
+  safe: string;
+  safeBg: string;
+  warning: string;
+  warningBg: string;
+  emergency: string;
+  emergencyBg: string;
+  info: string;
+  infoBg: string;
+  background: string;
+  paper: string;
+  paperAlt: string;
+  text: string;
+  textSub: string;
+  textMuted: string;
+  border: string;
+  navBg: string;
 };
 
 export const lightTheme: ColorTheme = {
-  primary: {
-    base: '#F97316', // Vibrant Orange
-    light: '#FFEDD5',
-    dark: '#C2410C',
-  },
-  secondary: {
-    base: '#F59E0B', // Amber/Yellow
-    light: '#FEF3C7',
-    dark: '#B45309',
-  },
-  safe: {
-    base: '#10B981', // Emerald Green
-    light: '#D1FAE5',
-    dark: '#047857',
-  },
-  warning: {
-    base: '#F59E0B',
-    light: '#FEF3C7',
-    dark: '#B45309',
-  },
-  emergency: {
-    base: '#EF4444',
-    light: '#FEE2E2',
-    dark: '#B91C1C',
-  },
-  background: {
-    base: '#FFF9EF', // Warm Cream from reference
-    paper: '#FFFFFF', // Pure white cards
-    glass: 'rgba(255, 255, 255, 0.8)',
-  },
-  text: {
-    primary: '#111827', // Dark gray almost black
-    secondary: '#4B5563',
-    tertiary: '#9CA3AF',
-    inverse: '#FFFFFF', // White text on dark buttons
-  },
-  border: {
-    base: '#FDE6CE', // Very soft orange-tinted border
-    strong: '#E5E7EB',
-    glow: '#F97316',
-  },
+  primary:     '#F97316',  // Orange
+  primaryDark: '#EA580C',  // Deep Orange
+  primaryBg:   '#FFF3E8',  // Cream Orange
+  safe:        '#10B981',  // Emerald
+  safeBg:      '#ECFDF5',
+  warning:     '#F59E0B',  // Amber
+  warningBg:   '#FFFBEB',
+  emergency:   '#EF4444',  // Crimson
+  emergencyBg: '#FEF2F2',
+  info:        '#3B82F6',  // Blue
+  infoBg:      '#EFF6FF',
+  background:  '#FFF9EF',  // Warm Cream
+  paper:       '#FFFFFF',  // Pure White
+  paperAlt:    '#FFF5E6',  // Warm White
+  text:        '#111827',  // Near Black
+  textSub:     '#4B5563',  // Mid Gray
+  textMuted:   '#9CA3AF',  // Light Gray
+  border:      '#FDE6CE',  // Cream Border
+  navBg:       '#FFFFFF',
 };
 
 export const darkTheme: ColorTheme = {
-  primary: {
-    base: '#F97316', // Orange pops on dark mode
-    light: '#7C2D12',
-    dark: '#EA580C',
-  },
-  secondary: {
-    base: '#F59E0B',
-    light: '#78350F',
-    dark: '#D97706',
-  },
-  safe: {
-    base: '#10B981',
-    light: '#064E3B',
-    dark: '#059669',
-  },
-  warning: {
-    base: '#F59E0B',
-    light: '#78350F',
-    dark: '#D97706',
-  },
-  emergency: {
-    base: '#EF4444',
-    light: '#7F1D1D',
-    dark: '#DC2626',
-  },
-  background: {
-    base: '#111827', // Very dark slate
-    paper: '#1F2937', // Slightly lighter slate cards
-    glass: 'rgba(31, 41, 55, 0.8)',
-  },
-  text: {
-    primary: '#F9FAFB',
-    secondary: '#D1D5DB',
-    tertiary: '#9CA3AF',
-    inverse: '#111827',
-  },
-  border: {
-    base: '#374151',
-    strong: '#4B5563',
-    glow: '#F97316',
-  },
+  primary:     '#F97316',
+  primaryDark: '#EA580C',
+  primaryBg:   '#2A1A0A',  // Deep warm
+  safe:        '#10B981',
+  safeBg:      '#052E1B',
+  warning:     '#F59E0B',
+  warningBg:   '#1C1500',
+  emergency:   '#EF4444',
+  emergencyBg: '#1C0606',
+  info:        '#3B82F6',
+  infoBg:      '#0C1929',
+  background:  '#0C0C0E',  // Near Black
+  paper:       '#1A1A1F',  // Dark Surface
+  paperAlt:    '#141418',
+  text:        '#F9FAFB',
+  textSub:     '#D1D5DB',
+  textMuted:   '#6B7280',
+  border:      '#2D2D35',
+  navBg:       '#12121A',
 };
 
-// For backwards compatibility before context is wired up everywhere
+// Backward compat
 export const colors = lightTheme;

@@ -1,9 +1,8 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet } from 'react-native';
-import { Home, Map as MapIcon, ShieldAlert, Bell, User } from 'lucide-react-native';
+import { View, StyleSheet, Platform } from 'react-native';
+import { Home, Map as MapIcon, ShieldAlert, Bell, Wrench, User } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/theme/ThemeContext';
-import { typography } from '../../src/theme/typography';
-import { borderRadius } from '../../src/theme/spacing';
 
 export default function TabLayout() {
   const { colors, isDark } = useTheme();
@@ -12,25 +11,25 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary.base,
-        tabBarInactiveTintColor: colors.text.tertiary,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.background.paper,
-          borderTopColor: colors.border.strong,
+          backgroundColor: colors.navBg,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
+          height: Platform.OS === 'ios' ? 88 : 68,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          paddingTop: 8,
           elevation: isDark ? 0 : 10,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.1,
+          shadowOpacity: 0.06,
           shadowRadius: 10,
-          height: 65,
-          paddingBottom: 10,
-          paddingTop: 10,
         },
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: typography.weights.bold,
-          marginTop: 4,
+          fontWeight: '600',
+          marginTop: 2,
         },
       }}>
       <Tabs.Screen
@@ -38,16 +37,28 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Home color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+            focused ? (
+              <View style={[styles.activePill, { backgroundColor: colors.primaryBg }]}>
+                <Home color={colors.primary} size={20} strokeWidth={2.5} />
+              </View>
+            ) : (
+              <Home color={color} size={22} strokeWidth={2} />
+            )
           ),
         }}
       />
       <Tabs.Screen
-        name="route"
+        name="map"
         options={{
-          title: 'Route',
+          title: 'Map',
           tabBarIcon: ({ color, focused }) => (
-            <MapIcon color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+            focused ? (
+              <View style={[styles.activePill, { backgroundColor: colors.primaryBg }]}>
+                <MapIcon color={colors.primary} size={20} strokeWidth={2.5} />
+              </View>
+            ) : (
+              <MapIcon color={color} size={22} strokeWidth={2} />
+            )
           ),
         }}
       />
@@ -55,8 +66,16 @@ export default function TabLayout() {
         name="tools"
         options={{
           title: 'SOS',
-          tabBarIcon: ({ color, focused }) => (
-            <ShieldAlert color={color} size={28} strokeWidth={focused ? 2.5 : 2} />
+          tabBarLabel: () => null,
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.sosContainer}>
+              <LinearGradient
+                colors={['#EF4444', '#DC2626']}
+                style={styles.sosButton}
+              >
+                <ShieldAlert size={23} color="#FFF" strokeWidth={2} />
+              </LinearGradient>
+            </View>
           ),
         }}
       />
@@ -65,19 +84,58 @@ export default function TabLayout() {
         options={{
           title: 'Alerts',
           tabBarIcon: ({ color, focused }) => (
-            <Bell color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+            focused ? (
+              <View style={[styles.activePill, { backgroundColor: colors.primaryBg }]}>
+                <Bell color={colors.primary} size={20} strokeWidth={2.5} />
+              </View>
+            ) : (
+              <Bell color={color} size={22} strokeWidth={2} />
+            )
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'Me',
           tabBarIcon: ({ color, focused }) => (
-            <User color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+            focused ? (
+              <View style={[styles.activePill, { backgroundColor: colors.primaryBg }]}>
+                <User color={colors.primary} size={20} strokeWidth={2.5} />
+              </View>
+            ) : (
+              <User color={color} size={22} strokeWidth={2} />
+            )
           ),
         }}
       />
+      {/* Hide route tab from bottom nav — accessed via navigation */}
+      <Tabs.Screen name="route" options={{ href: null }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  activePill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  sosContainer: {
+    marginTop: -22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sosButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: 'rgba(239,68,68,0.55)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+});
