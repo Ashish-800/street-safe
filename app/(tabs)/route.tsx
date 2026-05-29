@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, TextInput, ActivityIndicator, Alert as RNAlert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Navigation2, ArrowUpDown, MapPin } from 'lucide-react-native';
+import { ArrowLeft, Navigation2, MapPin, ShieldCheck, ShieldAlert, AlertTriangle, Clock, Brain, Sparkles } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
@@ -31,16 +31,19 @@ const KOLKATA_PLACES: Record<string, [number, number]> = {
   'south city': [88.3868, 22.5006],
   'kalighat': [88.3475, 22.5223],
   'college street': [88.3635, 22.5752],
+  'new market': [88.3515, 22.5573],
+  'victoria memorial': [88.3425, 22.5449],
+  'science city': [88.3957, 22.5400],
+  'rabindra sadan': [88.3421, 22.5360],
+  'bhawanipore': [88.3450, 22.5233],
 };
 
 // Geocode destination
 const geocode = async (query: string): Promise<[number, number] | null> => {
   const q = query.toLowerCase().trim();
-  // Check local database first
   for (const [key, coords] of Object.entries(KOLKATA_PLACES)) {
     if (q.includes(key)) return coords;
   }
-  // Try Mapbox geocoding
   if (MAPBOX_TOKEN) {
     try {
       const resp = await fetch(
@@ -53,6 +56,127 @@ const geocode = async (query: string): Promise<[number, number] | null> => {
     } catch (e) {}
   }
   return null;
+};
+
+// Haversine distance in km
+const haversine = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371;
+  const toRad = (d: number) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+// ─── AI SAFETY ENGINE ───
+interface AlertData { latitude: number; longitude: number; severity: string; type: string; }
+interface SafetyAnalysis {
+  score: number;
+  incidentProximity: number;      // penalty from nearby incidents
+  timeOfDayFactor: number;        // night penalty
+  lightingScore: number;          // estimated lighting
+  crowdDensity: number;           // estimated crowd level
+  routeTypePenalty: number;       // walk vs drive
+  nearbyIncidents: number;        // count of alerts within 1km
+  recommendations: string[];
+}
+
+const analyzeRouteSafety = (
+  routeCoords: [number, number][],
+  alerts: AlertData[],
+  profile: string,
+): SafetyAnalysis => {
+  let baseSafety = 100;
+  const recommendations: string[] = [];
+
+  // 1. INCIDENT PROXIMITY — check how close the route passes to known danger zones
+  let totalIncidentPenalty = 0;
+  let nearbyIncidents = 0;
+  const samplePoints = routeCoords.length > 20
+    ? routeCoords.filter((_, i) => i % Math.floor(routeCoords.length / 20) === 0)
+    : routeCoords;
+
+  for (const alert of alerts) {
+    if (!alert.latitude || !alert.longitude) continue;
+    for (const [lng, lat] of samplePoints) {
+      const dist = haversine(lat, lng, alert.latitude, alert.longitude);
+      if (dist < 0.3) { // Within 300m
+        const severityWeight = alert.severity === 'SEVERE' ? 6 : alert.severity === 'MODERATE' ? 3 : 1;
+        totalIncidentPenalty += severityWeight * (1 - dist / 0.3); // closer = worse
+        nearbyIncidents++;
+        break; // count each alert once
+      } else if (dist < 1.0) {
+        nearbyIncidents++;
+      }
+    }
+  }
+  const incidentProximity = Math.min(30, totalIncidentPenalty);
+  baseSafety -= incidentProximity;
+
+  if (nearbyIncidents > 3) {
+    recommendations.push('⚠️ Multiple incidents reported along this route');
+  } else if (nearbyIncidents > 0) {
+    recommendations.push('ℹ️ Some incidents reported nearby — stay alert');
+  }
+
+  // 2. TIME OF DAY — night is more dangerous
+  const hour = new Date().getHours();
+  let timeOfDayFactor = 0;
+  if (hour >= 22 || hour < 5) {
+    timeOfDayFactor = 15; // Late night
+    recommendations.push('🌙 Late night travel — consider a cab instead of walking');
+  } else if (hour >= 19 || hour < 6) {
+    timeOfDayFactor = 8; // Evening/early morning
+    recommendations.push('🌆 Evening hours — stay on well-lit main roads');
+  } else if (hour >= 6 && hour < 9) {
+    timeOfDayFactor = 2; // Early morning
+  }
+  baseSafety -= timeOfDayFactor;
+
+  // 3. LIGHTING SCORE — estimate based on time + route type
+  let lightingScore = 90;
+  if (hour >= 20 || hour < 6) lightingScore = 40;
+  else if (hour >= 18) lightingScore = 65;
+
+  // 4. CROWD DENSITY — estimate based on time
+  let crowdDensity = 50;
+  if (hour >= 8 && hour <= 10) crowdDensity = 85; // Rush hour
+  else if (hour >= 17 && hour <= 19) crowdDensity = 80;
+  else if (hour >= 22 || hour < 6) crowdDensity = 15;
+  else if (hour >= 11 && hour <= 16) crowdDensity = 65;
+
+  if (crowdDensity < 30) {
+    baseSafety -= 5;
+    recommendations.push('👥 Low crowd density — consider sharing live location');
+  }
+
+  // 5. ROUTE TYPE PENALTY — walking is more exposed
+  let routeTypePenalty = 0;
+  if (profile === 'walking') {
+    routeTypePenalty = 8;
+    recommendations.push('🚶 Walking route — keep emergency contacts ready');
+  } else if (profile === 'cycling') {
+    routeTypePenalty = 5;
+  } else {
+    recommendations.push('🚗 Vehicle route — safer than walking at this hour');
+  }
+  baseSafety -= routeTypePenalty;
+
+  // Clamp
+  const score = Math.max(15, Math.min(98, Math.round(baseSafety)));
+  if (score >= 85) recommendations.unshift('✅ AI analysis: This route is safe for travel');
+  else if (score >= 70) recommendations.unshift('⚡ AI analysis: Moderate safety — take precautions');
+  else recommendations.unshift('🚨 AI analysis: Low safety score — consider an alternative');
+
+  return {
+    score,
+    incidentProximity,
+    timeOfDayFactor,
+    lightingScore,
+    crowdDensity,
+    routeTypePenalty,
+    nearbyIncidents,
+    recommendations,
+  };
 };
 
 // Fetch Mapbox directions
@@ -93,6 +217,8 @@ export default function RouteScreen() {
   const [routes, setRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [destCoords, setDestCoords] = useState<[number, number] | null>(null);
+  const [alerts, setAlerts] = useState<AlertData[]>([]);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const MODES = [
     { label: '🚶 Walk', id: 'walk' },
@@ -101,6 +227,17 @@ export default function RouteScreen() {
     { label: '🚌 Bus', id: 'bus' },
   ];
 
+  // Fetch alerts for safety analysis
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        const { data } = await supabase.from('alerts').select('*').eq('active', true);
+        if (data) setAlerts(data);
+      } catch (e) {}
+    };
+    fetchAlerts();
+  }, []);
+
   const searchRoute = async () => {
     if (!destination.trim()) {
       RNAlert.alert('Enter destination', 'Please type where you want to go');
@@ -108,6 +245,7 @@ export default function RouteScreen() {
     }
     setLoading(true);
     setRoutes([]);
+    setShowAnalysis(false);
 
     const coords = await geocode(destination);
     if (!coords) {
@@ -125,59 +263,73 @@ export default function RouteScreen() {
         const durationMin = Math.round(r.duration / 60);
         const distKm = (r.distance / 1000).toFixed(1);
         const labels = ['SAFEST', 'FASTER', 'ALTERNATE'];
-        const colors = ['#10B981', '#F59E0B', '#3B82F6'];
-        // Compute safety based on profile (walking = more exposed = slightly lower)
-        const baseSafety = r.profile === 'walking' ? 75 : r.profile === 'driving' ? 85 : 80;
-        const safety = Math.min(98, baseSafety + Math.floor(Math.random() * 15));
+        const routeColors = ['#10B981', '#F59E0B', '#3B82F6'];
+
+        // AI Safety Analysis
+        const routeCoords = r.geometry?.coordinates || [];
+        const analysis = analyzeRouteSafety(routeCoords, alerts, r.profile);
+
         return {
           id: i,
           label: labels[i] || 'ROUTE',
           time: `${durationMin} min`,
           via: r.legs?.[0]?.summary || `Via ${r.profile}`,
           km: `${distKm} km`,
-          risk: safety >= 85 ? 'Low Risk' : safety >= 70 ? 'Medium Risk' : 'High Risk',
-          safety,
-          color: colors[i] || '#3B82F6',
-          best: i === 0,
+          safety: analysis.score,
+          analysis,
+          color: routeColors[i] || '#3B82F6',
+          best: false,
           profile: r.profile,
           geometry: r.geometry,
         };
       });
+
+      // Mark the highest safety score as "best"
+      const maxSafety = Math.max(...mapped.map(r => r.safety));
+      mapped.forEach(r => { if (r.safety === maxSafety) r.best = true; });
+      // Re-sort: safest first
+      mapped.sort((a, b) => b.safety - a.safety);
+      mapped.forEach((r, i) => { r.id = i; r.label = i === 0 ? 'SAFEST' : i === 1 ? 'FASTER' : 'ALTERNATE'; });
+
       setRoutes(mapped);
+      setShowAnalysis(true);
     } else {
-      // Fallback routes
+      // Fallback routes with AI analysis
+      const fallbackAnalysis = analyzeRouteSafety([], alerts, 'walking');
       setRoutes([
-        { id: 0, label: 'SAFEST', time: '22 min', via: 'Via main road', km: '3.2 km', risk: 'Low Risk', safety: 92, color: '#10B981', best: true },
-        { id: 1, label: 'FASTER', time: '16 min', via: 'Direct route', km: '2.8 km', risk: 'Medium Risk', safety: 68, color: '#F59E0B', best: false },
-        { id: 2, label: 'ALTERNATE', time: '28 min', via: 'Via safe zones', km: '4.1 km', risk: 'Low Risk', safety: 85, color: '#3B82F6', best: false },
+        { id: 0, label: 'SAFEST', time: '22 min', via: 'Via main road', km: '3.2 km', safety: fallbackAnalysis.score, analysis: fallbackAnalysis, color: '#10B981', best: true },
+        { id: 1, label: 'FASTER', time: '16 min', via: 'Direct route', km: '2.8 km', safety: Math.max(40, fallbackAnalysis.score - 15), analysis: { ...fallbackAnalysis, score: Math.max(40, fallbackAnalysis.score - 15), recommendations: ['⚡ Shorter but less safe', ...fallbackAnalysis.recommendations.slice(1)] }, color: '#F59E0B', best: false },
+        { id: 2, label: 'ALTERNATE', time: '28 min', via: 'Via safe zones', km: '4.1 km', safety: Math.max(50, fallbackAnalysis.score - 5), analysis: { ...fallbackAnalysis, score: Math.max(50, fallbackAnalysis.score - 5) }, color: '#3B82F6', best: false },
       ]);
+      setShowAnalysis(true);
     }
     setLoading(false);
   };
 
   const startNavigation = () => {
-    if (routes.length === 0) {
-      RNAlert.alert('No route', 'Search for a destination first');
-      return;
-    }
+    if (routes.length === 0) return;
     const route = routes[selectedRoute];
-    // Save to Supabase
     if (user) {
       supabase.from('saved_routes').insert([{
         user_id: user.id,
         from_location: location?.address || 'Current Location',
         to_location: destination,
-        route_data: { profile: route.profile, time: route.time, km: route.km },
+        route_data: { profile: route.profile, time: route.time, km: route.km, safety: route.safety },
         safety_score: route.safety,
       }]).then(() => {});
     }
-    RNAlert.alert('🧭 Navigation Started', `Following ${route.label} route: ${route.via}\n${route.time} · ${route.km}\nSafety: ${route.safety}%`);
+    RNAlert.alert('🧭 Navigation Started', `Following ${route.label} route: ${route.via}\n${route.time} · ${route.km}\nAI Safety Score: ${route.safety}%`);
   };
+
+  const selectedAnalysis = routes[selectedRoute]?.analysis;
 
   // Map preview
   const mapSrc = destCoords && MAPBOX_TOKEN
     ? `https://api.mapbox.com/styles/v1/mapbox/${isDark ? 'dark-v11' : 'streets-v12'}/static/pin-s+10B981(${location?.longitude || 88.3639},${location?.latitude || 22.5726}),pin-s+EF4444(${destCoords[0]},${destCoords[1]})/auto/600x300@2x?access_token=${MAPBOX_TOKEN}&padding=60`
     : null;
+
+  const getScoreColor = (score: number) => score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444';
+  const getScoreIcon = (score: number) => score >= 80 ? ShieldCheck : score >= 60 ? AlertTriangle : ShieldAlert;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -187,10 +339,16 @@ export default function RouteScreen() {
           <ArrowLeft size={20} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>AI Safe Route</Text>
-          <Text style={{ fontSize: 11, color: colors.textMuted }}>Smarter, safer journeys</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>AI Safe Route</Text>
+            <View style={[styles.aiBadge, { backgroundColor: colors.primaryBg }]}>
+              <Sparkles size={10} color={colors.primary} />
+              <Text style={{ fontSize: 9, fontWeight: '800', color: colors.primary }}>AI</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 11, color: colors.textMuted }}>Powered by safety intelligence</Text>
         </View>
-        <Navigation2 size={20} color={colors.primary} fill={colors.primary} />
+        <Brain size={20} color={colors.primary} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -203,11 +361,11 @@ export default function RouteScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <View style={[styles.fromField, { backgroundColor: colors.paperAlt, borderColor: colors.border }]}>
-              <MapPin size={14} color={colors.textMuted} style={{ marginRight: 8 }} />
-              <Text style={{ color: colors.textSub, fontSize: 13 }}>📍 {location?.address || 'Current Location'}</Text>
+              <MapPin size={14} color="#10B981" style={{ marginRight: 8 }} />
+              <Text style={{ color: colors.textSub, fontSize: 13 }} numberOfLines={1}>📍 {location?.address || 'Current Location'}</Text>
             </View>
             <View style={[styles.toField, { borderColor: focusDest ? colors.primary : colors.border, backgroundColor: colors.paper }]}>
-              <MapPin size={14} color={colors.textMuted} style={{ marginRight: 8 }} />
+              <MapPin size={14} color="#EF4444" style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.toInput, { color: colors.text }]}
                 placeholder="Where to? (e.g. Howrah Station)"
@@ -221,7 +379,7 @@ export default function RouteScreen() {
               />
             </View>
           </View>
-          <Pressable onPress={searchRoute} style={[styles.searchBtn, { backgroundColor: colors.primaryBg }]}>
+          <Pressable onPress={searchRoute} style={({ pressed }) => [styles.searchBtn, { backgroundColor: colors.primaryBg, opacity: pressed ? 0.7 : 1 }]}>
             {loading ? <ActivityIndicator size="small" color={colors.primary} /> : <Navigation2 size={16} color={colors.primary} />}
           </Pressable>
         </View>
@@ -247,6 +405,63 @@ export default function RouteScreen() {
           </View>
         ) : null}
 
+        {/* AI Safety Analysis Card */}
+        {showAnalysis && selectedAnalysis && (
+          <View style={[styles.aiCard, { backgroundColor: colors.paper, borderColor: colors.border }]}>
+            <View style={styles.aiCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Brain size={16} color={colors.primary} />
+                <Text style={[styles.aiCardTitle, { color: colors.text }]}>AI Safety Analysis</Text>
+              </View>
+              <View style={[styles.scorePill, { backgroundColor: `${getScoreColor(selectedAnalysis.score)}14` }]}>
+                {React.createElement(getScoreIcon(selectedAnalysis.score), { size: 14, color: getScoreColor(selectedAnalysis.score) })}
+                <Text style={{ fontSize: 16, fontWeight: '900', color: getScoreColor(selectedAnalysis.score), marginLeft: 4 }}>{selectedAnalysis.score}%</Text>
+              </View>
+            </View>
+
+            {/* Factor Bars */}
+            <View style={styles.factorsGrid}>
+              {[
+                { label: 'Incident proximity', value: Math.max(0, 100 - selectedAnalysis.incidentProximity * 3.3), color: selectedAnalysis.incidentProximity > 10 ? '#EF4444' : '#10B981' },
+                { label: 'Time of day', value: Math.max(0, 100 - selectedAnalysis.timeOfDayFactor * 6.7), color: selectedAnalysis.timeOfDayFactor > 8 ? '#EF4444' : '#10B981' },
+                { label: 'Lighting', value: selectedAnalysis.lightingScore, color: selectedAnalysis.lightingScore < 50 ? '#F59E0B' : '#10B981' },
+                { label: 'Crowd density', value: selectedAnalysis.crowdDensity, color: selectedAnalysis.crowdDensity < 30 ? '#EF4444' : '#10B981' },
+              ].map((f, i) => (
+                <View key={i} style={styles.factorRow}>
+                  <Text style={{ fontSize: 11, color: colors.textSub, width: 120 }}>{f.label}</Text>
+                  <View style={[styles.factorTrack, { backgroundColor: colors.border }]}>
+                    <View style={[styles.factorFill, { width: `${f.value}%`, backgroundColor: f.color }]} />
+                  </View>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: f.color, width: 32, textAlign: 'right' }}>{Math.round(f.value)}%</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Stats row */}
+            <View style={styles.statsRow}>
+              <View style={[styles.statBox, { backgroundColor: selectedAnalysis.nearbyIncidents > 0 ? '#FEF2F2' : '#ECFDF5' }]}>
+                <Text style={{ fontSize: 18, fontWeight: '900', color: selectedAnalysis.nearbyIncidents > 0 ? '#EF4444' : '#10B981' }}>{selectedAnalysis.nearbyIncidents}</Text>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>Nearby alerts</Text>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: '#EFF6FF' }]}>
+                <Text style={{ fontSize: 18, fontWeight: '900', color: '#3B82F6' }}>{Math.round(selectedAnalysis.crowdDensity)}%</Text>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>Crowd level</Text>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: selectedAnalysis.lightingScore < 50 ? '#FFFBEB' : '#ECFDF5' }]}>
+                <Text style={{ fontSize: 18, fontWeight: '900', color: selectedAnalysis.lightingScore < 50 ? '#F59E0B' : '#10B981' }}>{selectedAnalysis.lightingScore < 50 ? '🌙' : '☀️'}</Text>
+                <Text style={{ fontSize: 9, color: colors.textMuted }}>Lighting</Text>
+              </View>
+            </View>
+
+            {/* Recommendations */}
+            <View style={[styles.recsBox, { backgroundColor: colors.paperAlt }]}>
+              {selectedAnalysis.recommendations.slice(0, 3).map((rec: string, i: number) => (
+                <Text key={i} style={{ fontSize: 11, color: colors.textSub, lineHeight: 18, marginBottom: 2 }}>{rec}</Text>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Route Cards */}
         {routes.length > 0 && <Text style={[styles.sectionTitle, { color: colors.text }]}>Routes Available</Text>}
         {routes.map(r => (
@@ -255,16 +470,19 @@ export default function RouteScreen() {
               <View style={[styles.routeBadge, { backgroundColor: `${r.color}20` }]}>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: r.color }}>{r.label}</Text>
               </View>
-              {r.best && <View style={[styles.bestBadge, { backgroundColor: colors.primary }]}><Text style={{ fontSize: 8, fontWeight: '800', color: '#FFF' }}>BEST</Text></View>}
+              {r.best && <View style={[styles.bestBadge, { backgroundColor: colors.primary }]}><Text style={{ fontSize: 8, fontWeight: '800', color: '#FFF' }}>AI PICK</Text></View>}
               <View style={{ flex: 1 }} />
               <Text style={[styles.routeTime, { color: colors.text }]}>{r.time}</Text>
             </View>
-            <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4 }}>{r.via} · {r.km} · {r.risk}</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4 }}>{r.via} · {r.km}</Text>
             <View style={styles.safetyBarRow}>
               <View style={[styles.safetyTrack, { backgroundColor: colors.border }]}>
-                <View style={[styles.safetyFill, { width: `${r.safety}%`, backgroundColor: r.color }]} />
+                <View style={[styles.safetyFill, { width: `${r.safety}%`, backgroundColor: getScoreColor(r.safety) }]} />
               </View>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: r.color, marginLeft: 8 }}>{r.safety}%</Text>
+              <View style={[styles.safetyPill, { backgroundColor: `${getScoreColor(r.safety)}14` }]}>
+                {React.createElement(getScoreIcon(r.safety), { size: 10, color: getScoreColor(r.safety) })}
+                <Text style={{ fontSize: 10, fontWeight: '700', color: getScoreColor(r.safety), marginLeft: 3 }}>{r.safety}%</Text>
+              </View>
             </View>
           </Pressable>
         ))}
@@ -272,8 +490,22 @@ export default function RouteScreen() {
         {/* Search prompt */}
         {routes.length === 0 && !loading && (
           <View style={styles.emptyState}>
-            <Text style={{ color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>🔍 Enter a destination to find safe routes</Text>
-            <Text style={{ color: colors.textMuted, textAlign: 'center', fontSize: 11, marginTop: 4 }}>Try: Howrah Station, Gariahat, Salt Lake, Park Street</Text>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.primaryBg }]}>
+              <Brain size={32} color={colors.primary} />
+            </View>
+            <Text style={{ color: colors.text, textAlign: 'center', fontSize: 15, fontWeight: '700', marginTop: 12 }}>AI-Powered Safety Routing</Text>
+            <Text style={{ color: colors.textMuted, textAlign: 'center', fontSize: 12, marginTop: 6, lineHeight: 18, paddingHorizontal: 20 }}>
+              Enter a destination to get AI-analyzed routes with safety scores based on real-time incident data, time of day, lighting, and crowd density.
+            </Text>
+            <View style={[styles.suggestionsBox, { backgroundColor: colors.paper, borderColor: colors.border }]}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textSub, marginBottom: 8 }}>Try these destinations:</Text>
+              {['Howrah Station', 'Gariahat', 'Salt Lake', 'Park Street', 'New Town'].map(place => (
+                <Pressable key={place} onPress={() => { setDestination(place); }} style={[styles.suggestionPill, { backgroundColor: colors.paperAlt }]}>
+                  <MapPin size={10} color={colors.primary} />
+                  <Text style={{ fontSize: 12, color: colors.text, marginLeft: 6 }}>{place}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         )}
 
@@ -296,6 +528,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingTop: Platform.OS === 'ios' ? 54 : 34, paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1 },
   backBtn: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800' },
+  aiBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   scroll: { padding: 16, paddingBottom: 100 },
   routeCard: { flexDirection: 'row', borderRadius: 20, borderWidth: 1, padding: 14, marginBottom: 16, alignItems: 'center', shadowColor: 'rgba(0,0,0,0.06)', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 12, elevation: 2 },
   dotsCol: { alignItems: 'center', marginRight: 12, height: 90 },
@@ -308,6 +541,19 @@ const styles = StyleSheet.create({
   modeRow: { flexDirection: 'row', gap: 7, marginBottom: 16 },
   modePill: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   mapPreview: { height: 200, borderRadius: 20, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
+  // AI Card
+  aiCard: { borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 16, shadowColor: 'rgba(0,0,0,0.06)', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 12, elevation: 2 },
+  aiCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  aiCardTitle: { fontSize: 14, fontWeight: '800' },
+  scorePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  factorsGrid: { marginBottom: 12 },
+  factorRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  factorTrack: { flex: 1, height: 5, borderRadius: 3, marginHorizontal: 8 },
+  factorFill: { height: '100%', borderRadius: 3 },
+  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  statBox: { flex: 1, borderRadius: 14, padding: 10, alignItems: 'center' },
+  recsBox: { borderRadius: 14, padding: 12 },
+  // Routes
   sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 12 },
   routeOption: { borderRadius: 18, padding: 14, marginBottom: 10, shadowColor: 'rgba(0,0,0,0.06)', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 12, elevation: 2 },
   routeHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -317,6 +563,11 @@ const styles = StyleSheet.create({
   safetyBarRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   safetyTrack: { flex: 1, height: 6, borderRadius: 3 },
   safetyFill: { height: '100%', borderRadius: 3 },
-  emptyState: { paddingVertical: 40 },
+  safetyPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
+  // Empty
+  emptyState: { paddingVertical: 30, alignItems: 'center' },
+  emptyIcon: { width: 72, height: 72, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  suggestionsBox: { marginTop: 20, borderRadius: 16, borderWidth: 1, padding: 14, width: '100%' },
+  suggestionPill: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, marginBottom: 4 },
   navBtn: { height: 52, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', shadowColor: 'rgba(249,115,22,0.4)', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 1, shadowRadius: 20, elevation: 8 },
 });

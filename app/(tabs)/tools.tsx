@@ -88,13 +88,14 @@ export default function ToolsScreen() {
 
   const tools = [
     { title: 'Emergency SOS', desc: 'Hold to activate emergency alert', icon: ShieldAlert, color: '#EF4444', action: () => {} },
+    { title: 'AI Safe Route', desc: 'AI-powered safety routing', icon: Globe, color: '#F97316', action: () => router.push('/(tabs)/route') },
     { title: 'Fake Call', desc: 'Simulate incoming call', icon: PhoneIncoming, color: '#10B981', action: () => setFakeCallVisible(true) },
     { title: isRecording ? 'Stop Recording' : 'Voice Recorder', desc: isRecording ? formatTime(recordTime) : 'Record audio evidence', icon: isRecording ? Square : Mic, color: '#F59E0B', action: toggleRecording, active: isRecording },
     { title: torchOn ? 'Torch ON' : 'Flashlight', desc: 'Toggle torch light', icon: Zap, color: '#3B82F6', action: () => setTorchOn(!torchOn), active: torchOn },
     { title: 'Loud Siren', desc: '75dB alarm sound', icon: Volume2, color: '#F97316', action: () => Alert.alert('🔊 Siren', 'Playing alarm sound...') },
     { title: 'Silent Photo', desc: 'Covert burst capture', icon: Camera, color: '#8B5CF6', action: () => Alert.alert('📸 Photo', 'Silent burst saved to cloud.') },
-    { title: 'Safety Tips', desc: 'Stay safe guidelines', icon: BookOpen, color: '#10B981', action: () => Alert.alert('Safety Tips', '1. Stay alert\n2. Share location\n3. Trust instincts') },
-    { title: 'Police Stations', desc: 'Nearest stations', icon: Globe, color: '#3B82F6', action: () => Alert.alert('Nearest Station', 'Park Street PS — 0.8 km') },
+    { title: 'Safety Tips', desc: 'Stay safe guidelines', icon: BookOpen, color: '#10B981', action: () => Alert.alert('Safety Tips', '1. Stay alert\n2. Share location\n3. Trust instincts\n4. Keep phone charged\n5. Avoid dark alleys') },
+    { title: 'Call Police', desc: 'Kolkata Police: 100', icon: PhoneCall, color: '#EF4444', action: () => { if (Platform.OS === 'web') { Alert.alert('Emergency', 'Calling Kolkata Police: 100'); } else { Linking.openURL('tel:100'); } } },
   ];
 
   // Fake Call Overlay
